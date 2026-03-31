@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+<meta charset="UTF-8">
+<title>Here & Now</title>
+
+<style>
+body {background:#0f172a;color:white;font-family:Arial;margin:0;}
+header {display:flex;justify-content:space-between;padding:15px;background:#020617;}
+.logo {color:#22c55e;font-weight:bold;font-size:20px;}
+.container {padding:20px;}
+.card {background:#020617;padding:15px;margin:10px 0;border-radius:10px;}
+button {background:#22c55e;border:none;padding:8px;margin-top:5px;cursor:pointer;}
+input,select,textarea {width:100%;margin:5px 0;padding:8px;}
+.hidden {display:none;}
+</style>
+
+</head>
+
+<body>
+
+<header>
+<div class="logo">Here & Now</div>
+<div id="userPanel"></div>
+</header>
+
+<div class="container">
+
+<!-- ავტორიზაცია -->
+<div id="auth">
+<h3>შესვლა</h3>
+<input id="loginEmail" placeholder="მეილი">
+<input id="loginPass" type="password" placeholder="პაროლი">
+<button onclick="login()">შესვლა</button>
+
+<h3>რეგისტრაცია</h3>
+<input id="regUser" placeholder="იუზერნეიმი">
+<input id="regEmail" placeholder="მეილი">
+<input id="regPass" type="password" placeholder="პაროლი">
+
+<select id="role">
+<option value="buyer">მყიდველი</option>
+<option value="seller">გამყიდველი</option>
+</select>
+
+<button onclick="register()">რეგისტრაცია</button>
+</div>
+
+<!-- აპი -->
+<div id="app" class="hidden">
+
+<div id="buyerPanel" class="hidden">
+<button onclick="addRequest()">მოთხოვნის დამატება</button>
+</div>
+
+<h3>ყველა განცხადება</h3>
+<div id="list"></div>
+
+</div>
+
+</div>
+
+<script>
+
+let users = JSON.parse(localStorage.getItem("users")) || [];
+let requests = JSON.parse(localStorage.getItem("requests")) || [];
+let currentUser = JSON.parse(localStorage.getItem("currentUser"));
+
+// INIT
+renderPublic();
+if(currentUser) showApp();
+
+// REGISTER
+function register(){
+  let user = {
+    username: regUser.value,
+    email: regEmail.value,
+    pass: regPass.value,
+    role: role.value
+  };
+
+  users.push(user);
+  localStorage.setItem("users", JSON.stringify(users));
+  alert("დარეგისტრირდი!");
+}
+
+// LOGIN
+function login(){
+  users = JSON.parse(localStorage.getItem("users")) || [];
+
+  let user = users.find(u =>
+    u.email === loginEmail.value && u.pass === loginPass.value
+  );
+
+  if(!user) return alert("არასწორი მონაცემები");
+
+  localStorage.setItem("currentUser", JSON.stringify(user));
+  showApp();
+}
+
+// LOGOUT
+function logout(){
+  localStorage.removeItem("currentUser");
+  location.reload();
+}
+
+// SHOW APP
+function showApp(){
+  auth.classList.add("hidden");
+  app.classList.remove("hidden");
+
+  currentUser = JSON.parse(localStorage.getItem("currentUser"));
+
+  userPanel.innerHTML = `
+  ${currentUser.username} (${currentUser.role})
+  <button onclick="logout()">გასვლა</button>
+  `;
+
+  if(currentUser.role === "buyer"){
+    buyerPanel.classList.remove("hidden");
+  }
+
+  renderRequests();
+}
+
+// PUBLIC VIEW
+function renderPublic(){
+  renderRequests();
+}
+
+// ADD REQUEST
+function addRequest(){
+  let product = prompt("პროდუქტი");
+  let qty = prompt("რაოდენობა");
+  let comment = prompt("კომენტარი");
+
+  requests.push({
+    id: Date.now(),
+    user: currentUser.username,
+    product,
+    qty,
+    comment,
+    offers:[]
+  });
+
+  localStorage.setItem("requests", JSON.stringify(requests));
+  renderRequests();
+}
+
+// RENDER
+function renderRequests(){
+  list.innerHTML = "";
+
+  requests.forEach(r => {
+
+    let div = document.createElement("div");
+    div.className = "card";
+
+    let html = `
+    <b>${r.product}</b> (${r.qty}) <br>
+    ${r.comment}<br>
+    ავტორი: ${r.user}<br>
+    შეთავაზებები: ${r.offers.length}<br>
+    `;
+
+    // SELLER ხედავს შეთავაზების ღილაკს
+    if(currentUser && currentUser.role === "seller"){
+      html += `<button onclick="offer(${r.id})">შეთავაზება</button>`;
+    }
+
+    // BUYER ხედავს საკუთარ შეთავაზებებს
+    if(currentUser && currentUser.username === r.user){
+      html += `<button onclick="viewOffers(${r.id})">ნახვა</button>`;
+    }
+
+    div.innerHTML = html;
+    list.appendChild(div);
+  });
+}
+
+// MAKE OFFER
+function offer(id){
+  let price = prompt("ფასი");
+  let comment = prompt("კომენტარი");
+
+  let req = requests.find(r => r.id === id);
+
+  req.offers.push({
+    seller: currentUser.username,
+    price,
+    comment,
+    status:"pending"
+  });
+
+  localStorage.setItem("requests", JSON.stringify(requests));
+  renderRequests();
+}
+
+// VIEW OFFERS
+function viewOffers(id){
+  let req = requests.find(r => r.id === id);
+
+  let text = "";
+
+  req.offers.forEach((o,i)=>{
+    text += `${i+1}. ${o.seller} - ${o.price} (${o.status})\n`;
+  });
+
+  let choice = prompt(text + "\nაირჩიე ნომერი დასადასტურებლად");
+
+  let offer = req.offers[choice-1];
+  if(!offer) return;
+
+  let action = prompt("1 - დადასტურება / 2 - უარყოფა");
+
+  if(action == 1) offer.status = "accepted";
+  if(action == 2) offer.status = "rejected";
+
+  localStorage.setItem("requests", JSON.stringify(requests));
+  renderRequests();
+}
+
+</script>
+
+</body>
+</html>
